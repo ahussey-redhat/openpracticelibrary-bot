@@ -22,10 +22,14 @@ link
 """
 
 import argparse
+from genericpath import isdir
+import urllib3
 import json
 import os
 import subprocess
 import logging
+import os
+import sys
 
 import yaml
 
@@ -56,7 +60,53 @@ OPL_PRACTICES_LOCATION = (
     "https://github.com/openpracticelibrary/openpracticelibrary.git"
 )
 OPL_PRACTICES_DIRECTORY = "openpracticelibrary/src/pages/practice"
+CONFIG_FILE_PATH = 'config.yaml' if os.path.isfile('config.yaml') else 'config.yml'
 
+def _parse_config():
+    """
+    parses a configuration file and sets environment variables
+    """
+    with open(CONFIG_FILE_PATH, 'r') as fp:
+        content = yaml.safe_load(fp)
+        os.environ['bearer_token'] = content['bearer_token']
+
+def _compare_lists(list1, list2):
+    """
+    compare two list and return the diff
+    :returns: [list] diff between two lists
+    """
+    not_tweeted_practices = []
+    for practice in list1:
+        count = 0
+        for tweet in list2:
+            if practice['title'] == tweet:
+                LOGGER.info('Tweet exist')
+                count += 1
+        if count == 0:
+            not_tweeted_practices.append(practice)
+    return not_tweeted_practices
+
+def _get_current_tweets():
+    """
+    get a list of current tweets by the OpenPracticeLibrary
+    returns: [list] list of current tweets
+    """
+    http = urllib3.PoolManager()
+    resp = http.request(
+        "GET",
+        "https://api.twitter.com/2/users/1321838110133673984/tweets?tweet.fields=created_at&max_results=100",
+        headers={'Authorization': f"Bearer {os.getenv('bearer_token')}"})
+    if resp.status != 200:
+        LOGGER.critical(f"HTTP Error: {resp.status}")
+        sys.exit(1)
+    if resp.status == 200:
+        parsed_tweets = []
+        for tweet in json.loads(resp.data.decode('UTF-8'))['data']:
+            unparsed_tweet = tweet['text'].split('\n')
+            LOGGER.debug(unparsed_tweet)
+            parsed_tweet = unparsed_tweet[0].strip()
+            parsed_tweets.append(parsed_tweet)
+        return parsed_tweets
 
 def _get_file_listing(directory):
     """
@@ -103,12 +153,17 @@ class openpracticelibrarybot:
         subprocess.run(['git', 'checkout', 'master'])
         subprocess.run(['git', 'pull'])
         os.chdir(cwd)
+        _parse_config()
         self.current_practices = _get_file_listing(OPL_PRACTICES_DIRECTORY)
         LOGGER.debug(f"Practices:\n{json.dumps(self.current_practices, indent=2)}")
         self.practices = self._get_current_practices_details()
         LOGGER.debug(f"Practices Details: {json.dumps(self.practices, indent=2)}")
         LOGGER.info(f"Found {len(self.current_practices)} practices")
         LOGGER.info(f"Parsed {len(self.practices)} practices")
+        self.current_tweets = _get_current_tweets()
+        LOGGER.debug(f"Current tweets: {json.dumps(self.current_tweets, indent=2)}")
+        self.not_tweeted_practices = _compare_lists(self.practices, self.current_tweets)
+        LOGGER.info(f"Not tweeted practices: {json.dumps(self.not_tweeted_practices, indent=2)}")
 
     def _get_current_practices_details(self):
         """

@@ -1,4 +1,5 @@
 config.yaml
+config.yml
 __pycache__/
 openpracticelibrary/
 venv/
