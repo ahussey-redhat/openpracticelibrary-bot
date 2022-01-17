@@ -6,7 +6,8 @@ setup(
     packages=['openpracticelibrarybot'],
     install_requires=[
         'pyyaml',
-        'pylint'
+        'pylint',
+        'urllib3'
     ],
     entry_points = {
         'console_scripts': ['oplbot = openpracticelibrarybot.__main__:run'],

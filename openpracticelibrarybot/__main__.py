@@ -22,8 +22,7 @@ link
 """
 
 import argparse
-from genericpath import isdir
-import urllib3
+import csv
 import json
 import os
 import subprocess
@@ -31,6 +30,9 @@ import logging
 import os
 import sys
 
+from genericpath import isdir
+
+import urllib3
 import yaml
 
 PARSER = argparse.ArgumentParser(
@@ -127,6 +129,20 @@ def _check_for_directory(directory):
         return True
     return False
 
+def _convert_to_csv(json_blob):
+    """
+    receive a json blob which as an array with nested dictionaries, and
+    convert them into a csv file
+    :param json_blob: json array with nested dictionaries
+    """
+
+    fieldnames = json_blob[0].keys()
+    with open('opl_practices.csv', 'w') as of:
+        csvwriter = csv.DictWriter(of, fieldnames=fieldnames)
+        csvwriter.writeheader()
+        for practice in json_blob:
+            csvwriter.writerow(practice)
+
 
 class openpracticelibrarybot:
     """
@@ -164,6 +180,7 @@ class openpracticelibrarybot:
         LOGGER.debug(f"Current tweets: {json.dumps(self.current_tweets, indent=2)}")
         self.not_tweeted_practices = _compare_lists(self.practices, self.current_tweets)
         LOGGER.info(f"Not tweeted practices: {json.dumps(self.not_tweeted_practices, indent=2)}")
+        _convert_to_csv(self.not_tweeted_practices)
 
     def _get_current_practices_details(self):
         """
@@ -181,12 +198,12 @@ class openpracticelibrarybot:
                         practice_name = practice.replace(".md", "")
                         document_details["title"] = document["title"]
                         document_details["purpose"] = document["subtitle"]
-                        document_details["authors"] = document["authors"]
-                        document_details["icon"] = document["icon"]
-                        document_details["file_name"] = practice_file_name
                         document_details[
                             "url"
                         ] = f"https://openpracticelibrary.com/practice/{practice_name}/"
+                        document_details["authors"] = ' '.join(['🙏🏻  @' + sub for sub in document["authors"]])
+                        document_details["icon"] = f"https://openpracticelibrary.com{document['icon']}"
+                        document_details["file_name"] = practice_file_name
                         break
                     practices.append(document_details)
                 except yaml.reader.ReaderError:
