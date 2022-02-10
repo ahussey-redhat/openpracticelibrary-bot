@@ -82,7 +82,6 @@ def _compare_lists(list1, list2):
         count = 0
         for tweet in list2:
             if practice['title'] == tweet:
-                LOGGER.info('Tweet exist')
                 count += 1
         if count == 0:
             not_tweeted_practices.append(practice)
@@ -166,7 +165,7 @@ class openpracticelibrarybot:
         if not _check_for_directory("openpracticelibrary"):
             subprocess.run(["git", "clone", OPL_PRACTICES_LOCATION])
         os.chdir(OPL_PRACTICES_DIRECTORY)
-        subprocess.run(['git', 'checkout', 'master'])
+        subprocess.run(['git', 'checkout', 'main'])
         subprocess.run(['git', 'pull'])
         os.chdir(cwd)
         _parse_config()
@@ -179,7 +178,7 @@ class openpracticelibrarybot:
         self.current_tweets = _get_current_tweets()
         LOGGER.debug(f"Current tweets: {json.dumps(self.current_tweets, indent=2)}")
         self.not_tweeted_practices = _compare_lists(self.practices, self.current_tweets)
-        LOGGER.info(f"Not tweeted practices: {json.dumps(self.not_tweeted_practices, indent=2)}")
+        LOGGER.debug(f"Not tweeted practices: {json.dumps(self.not_tweeted_practices, indent=2)}")
         _convert_to_csv(self.not_tweeted_practices)
 
     def _get_current_practices_details(self):
