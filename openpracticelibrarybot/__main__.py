@@ -142,6 +142,27 @@ def _convert_to_csv(json_blob):
         for practice in json_blob:
             csvwriter.writerow(practice)
 
+def _convert_from_csv(path_to_csv):
+    """
+    convert a CSV file to a list
+    :param str path_to_csv: path to the CSV file
+    :returns dict: dictionary of each author mapped to their Twitter ID
+    """
+    authors = {}
+    with open(path_to_csv, 'r') as fp:
+        reader = csv.reader(fp)
+        data = list(reader)
+    for author_instance in data:
+        if author_instance == data[0]:
+            continue
+        author = author_instance[0].split('.')[0]
+        if author_instance[1] == "" or author_instance[1] == "--":
+            twitter_handle = f"https://github.com/{author}"
+        if author_instance[1] != "" and author_instance[1] != "--":
+            twitter_handle = f"@{author_instance[1]}"
+        authors[author.lower()] = twitter_handle
+    return authors
+
 
 class openpracticelibrarybot:
     """
@@ -171,6 +192,9 @@ class openpracticelibrarybot:
         _parse_config()
         self.current_practices = _get_file_listing(OPL_PRACTICES_DIRECTORY)
         LOGGER.debug(f"Practices:\n{json.dumps(self.current_practices, indent=2)}")
+        self.authors = _convert_from_csv('authors.csv')
+        LOGGER.debug(f"Authors: {json.dumps(self.authors, indent=2)}")
+        LOGGER.info(f"Authors mapped: {len(self.authors)}")
         self.practices = self._get_current_practices_details()
         LOGGER.debug(f"Practices Details: {json.dumps(self.practices, indent=2)}")
         LOGGER.info(f"Found {len(self.current_practices)} practices")
@@ -200,7 +224,15 @@ class openpracticelibrarybot:
                         document_details[
                             "url"
                         ] = f"https://openpracticelibrary.com/practice/{practice_name}/"
-                        document_details["authors"] = ' '.join(['🙏🏻  @' + sub for sub in document["authors"]])
+                        try:
+                            authors = []
+                            for author in document["authors"]:
+                                authors.append(f"🙏🏻 {self.authors[author.lower()]}")
+                            document_details["authors"] = ' '.join(authors)
+                        except KeyError as key_err:
+                            LOGGER.warning(f"Missing author details: {key_err}")
+                            document_details["authors"] = ' '.join([f"🙏🏻 https://github.com/" + sub for sub in document["authors"]])
+                            pass
                         document_details["icon"] = f"https://openpracticelibrary.com{document['icon']}"
                         document_details["file_name"] = practice_file_name
                         break

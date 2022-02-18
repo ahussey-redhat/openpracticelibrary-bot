@@ -5,4 +5,4 @@ __pycache__/
 openpracticelibrary/
 venv/
 *.egg-info/
-opl_practices.csv
+*.csv
