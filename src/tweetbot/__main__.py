@@ -35,8 +35,13 @@ from genericpath import isdir
 import urllib3
 import yaml
 
+VERSION = '0.0.1'
+
 PARSER = argparse.ArgumentParser(
     description="OpenPracticeLibrary - Twitter Bot"
+)
+PARSER.add_argument(
+    "-a", "--all", help="Schedule tweets for all practices, not just ones that haven't been tweeted before"
 )
 PARSER.add_argument(
     "-c", "--config", default="config.yaml"
@@ -77,15 +82,34 @@ def _compare_lists(list1, list2):
     compare two list and return the diff
     :returns: [list] diff between two lists
     """
-    not_tweeted_practices = []
-    for practice in list1:
-        count = 0
-        for tweet in list2:
-            if practice['title'] == tweet:
-                count += 1
-        if count == 0:
-            not_tweeted_practices.append(practice)
+    if ARGS.all:
+        not_tweeted_practices = list1
+    if not ARGS.all:
+        not_tweeted_practices = []
+        for practice in list1:
+            count = 0
+            for tweet in list2:
+                if practice['title'] == tweet:
+                    count += 1
+            if count == 0:
+                not_tweeted_practices.append(practice)
+                LOGGER.debug(f"Not tweeted: {json.dumps(practice, indent=2)}")
     return not_tweeted_practices
+
+def _parse_tweets(tweets, parsed_tweets):
+    """
+    parse a json blob of tweets
+    :param array: tweets, each tweet is a dict
+    :param array: tweets that have already been parsed
+    :returns: parsed_tweets
+    """
+    for tweet in tweets:
+        unparsed_tweet = tweet['text'].split('\n')
+        LOGGER.debug(unparsed_tweet)
+        parsed_tweet = unparsed_tweet[0].strip()
+        LOGGER.debug(f"Parsed tweet: {parsed_tweet}")
+        parsed_tweets.append(parsed_tweet)
+    return parsed_tweets
 
 def _get_current_tweets():
     """
@@ -102,12 +126,21 @@ def _get_current_tweets():
         sys.exit(1)
     if resp.status == 200:
         parsed_tweets = []
-        for tweet in json.loads(resp.data.decode('UTF-8'))['data']:
-            unparsed_tweet = tweet['text'].split('\n')
-            LOGGER.debug(unparsed_tweet)
-            parsed_tweet = unparsed_tweet[0].strip()
-            parsed_tweets.append(parsed_tweet)
-        return parsed_tweets
+        meta_data = json.loads(resp.data.decode('UTF-8'))['meta']
+        parsed_tweets = _parse_tweets(json.loads(resp.data.decode('UTF-8'))['data'], parsed_tweets)
+        try:
+            while meta_data['next_token']:
+                LOGGER.debug(f"Next token: {json.dumps(meta_data['next_token'], indent=2)}")
+                LOGGER.debug('Parsing next page')
+                resp = http.request(
+                    "GET",
+                    f"https://api.twitter.com/2/users/1321838110133673984/tweets?tweet.fields=created_at&max_results=100&pagination_token={meta_data['next_token']}",
+                    headers={'Authorization': f"Bearer {os.getenv('bearer_token')}"})
+                meta_data = json.loads(resp.data.decode('UTF-8'))['meta']
+                parsed_tweets = _parse_tweets(json.loads(resp.data.decode('UTF-8'))['data'], parsed_tweets)
+        except KeyError as key_err:
+            parsed_tweets = _parse_tweets(json.loads(resp.data.decode('UTF-8'))['data'], parsed_tweets)
+        return  parsed_tweets
 
 def _get_file_listing(directory):
     """
@@ -221,6 +254,7 @@ class openpracticelibrarytweetbot:
         LOGGER.debug(f"Not tweeted practices: {json.dumps(self.not_tweeted_practices, indent=2)}")
         _convert_to_csv(self.not_tweeted_practices)
         #self.scheduled_tweets = _get_scheduled_tweets()
+        LOGGER.info('Complete')
 
     def _get_current_practices_details(self):
         """
@@ -247,7 +281,7 @@ class openpracticelibrarytweetbot:
                                 authors.append(f"🙏🏻 {self.authors[author.lower()]}")
                             document_details["authors"] = ' '.join(authors)
                         except KeyError as key_err:
-                            LOGGER.warning(f"Missing author details: {key_err}")
+                            LOGGER.warning(f"Missing author details: {key_err} for practice \'{document['title']}\'")
                             document_details["authors"] = ' '.join([f"🙏🏻 https://github.com/" + sub for sub in document["authors"]])
                             pass
                         document_details["icon"] = f"https://openpracticelibrary.com{document['icon']}"
