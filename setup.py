@@ -1,15 +1,15 @@
 from setuptools import setup
 
 setup(
-    name='openpracticelibrary-bot',
+    name='openpracticelibrary-tweetbot',
     version='0.0.1',
-    packages=['openpracticelibrarybot'],
+    packages=['openpracticelibrarytweetbot'],
     install_requires=[
         'pyyaml',
         'pylint',
         'urllib3'
     ],
     entry_points = {
-        'console_scripts': ['oplbot = openpracticelibrarybot.__main__:run'],
+        'console_scripts': ['oplscheduletweets = openpracticelibrarytweetbot.__main__:main'],
     }
 )

@@ -163,8 +163,24 @@ def _convert_from_csv(path_to_csv):
         authors[author.lower()] = twitter_handle
     return authors
 
+def _get_scheduled_tweets():
+    """
+    get scheduled tweets
+    :returns: array of dicts of each scheduled tweet or None
+    """
+    http = urllib3.PoolManager()
+    resp = http.request(
+        "GET",
+        "https://api.twitter.com/10/accounts/1321838110133673984/scheduled_tweets",
+        headers={'Authorization': f"Bearer {os.getenv('bearer_token')}"})
+    if resp.status != 200:
+        LOGGER.critical(f"HTTP Error: {resp.status}")
+        sys.exit(1)
+    if resp.status == 200:
+        print(json.dumps(resp.data))
+        return resp.json
 
-class openpracticelibrarybot:
+class openpracticelibrarytweetbot:
     """
     OpenPracticeLibrary - Twitter Bot
     Posts Tweets based on OpenPracticeLibrary Practices.
@@ -204,6 +220,7 @@ class openpracticelibrarybot:
         self.not_tweeted_practices = _compare_lists(self.practices, self.current_tweets)
         LOGGER.debug(f"Not tweeted practices: {json.dumps(self.not_tweeted_practices, indent=2)}")
         _convert_to_csv(self.not_tweeted_practices)
+        #self.scheduled_tweets = _get_scheduled_tweets()
 
     def _get_current_practices_details(self):
         """
@@ -243,12 +260,12 @@ class openpracticelibrarybot:
         return practices
 
 
-def run():
+def main():
     """
     responsible for starting the application correctly
     """
-    openpracticelibrarybot()
+    openpracticelibrarytweetbot()
 
 
 if __name__ == "__main__":
-    run()
+    main()
